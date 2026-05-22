@@ -419,10 +419,13 @@ module.exports = (() => {
         try { unpatch(); } catch (_) {}
       }
       if (this.boundDocClick) {
-        document.removeEventListener("mousedown", this.boundDocClick, true);
+        this.closePicker();
+        this.removeOutsideClickListeners(document);
         this.boundDocClick = null;
       }
-      this.closePicker();
+      else {
+        this.closePicker();
+      }
       BdApi.DOM.removeStyle(this.styleId);
       BdApi.UI.showToast(`${this.meta.name} ${this.meta.version} stopped`, {type: "info"});
     }
@@ -561,10 +564,26 @@ module.exports = (() => {
         if (!this.activePicker) return;
         const button = this.activePicker.button;
         const panel = this.activePicker.panel;
-        if (button?.contains(event.target) || panel?.contains(event.target)) return;
+        const path = event.composedPath?.() || [];
+        if (
+          button?.contains(event.target) ||
+          panel?.contains(event.target) ||
+          path.includes(button) ||
+          path.includes(panel)
+        ) return;
         this.closePicker();
       };
-      document.addEventListener("mousedown", this.boundDocClick, true);
+      this.addOutsideClickListeners(document);
+    }
+
+    addOutsideClickListeners(doc) {
+      doc.addEventListener("pointerdown", this.boundDocClick, true);
+      doc.addEventListener("click", this.boundDocClick, true);
+    }
+
+    removeOutsideClickListeners(doc) {
+      doc.removeEventListener("pointerdown", this.boundDocClick, true);
+      doc.removeEventListener("click", this.boundDocClick, true);
     }
 
     patchChatBarButtons() {
@@ -871,7 +890,7 @@ module.exports = (() => {
 
       this.activePicker = {button, panel, doc};
       if (doc !== document && this.boundDocClick) {
-        doc.addEventListener("mousedown", this.boundDocClick, true);
+        this.addOutsideClickListeners(doc);
       }
       view.setTimeout(() => search.focus(), 0);
     }
@@ -879,7 +898,7 @@ module.exports = (() => {
     closePicker() {
       if (!this.activePicker) return;
       if (this.activePicker.doc !== document && this.boundDocClick) {
-        this.activePicker.doc?.removeEventListener("mousedown", this.boundDocClick, true);
+        this.removeOutsideClickListeners(this.activePicker.doc);
       }
       this.activePicker.panel?.remove();
       this.activePicker = null;
@@ -969,6 +988,25 @@ module.exports = (() => {
       BdApi.DOM.addStyle(this.styleId, `
         .asciimoji-trigger { margin-right: 4px; }
         .asciimoji-chat-button-icon { font-family: var(--font-primary), sans-serif; pointer-events: none; }
+        .asciimoji-picker-list {
+          scrollbar-width: thin;
+          scrollbar-color:
+            var(--scrollbar-thin-thumb, var(--scrollbar-auto-thumb, var(--background-modifier-accent)))
+            var(--scrollbar-thin-track, var(--scrollbar-auto-track, transparent));
+        }
+        .asciimoji-picker-list::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .asciimoji-picker-list::-webkit-scrollbar-thumb {
+          background-color: var(--scrollbar-thin-thumb, var(--scrollbar-auto-thumb, var(--background-modifier-accent)));
+          border: 2px solid transparent;
+          border-radius: 999px;
+          background-clip: padding-box;
+        }
+        .asciimoji-picker-list::-webkit-scrollbar-track {
+          background-color: var(--scrollbar-thin-track, var(--scrollbar-auto-track, transparent));
+        }
         .asciimoji-settings { padding: 16px; color: var(--header-primary); }
         .asciimoji-settings .section { margin-bottom: 20px; }
         .asciimoji-settings h3 { margin-bottom: 8px; }
