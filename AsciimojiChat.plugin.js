@@ -1,7 +1,7 @@
 /**
  * @name AsciimojiChat
  * @author Bo$$
- * @version 0.2.3
+ * @version 0.2.4
  * @description Adds an ASCIImoji button to the chat bar and replaces tokens like (shrug) or (bear) in outgoing messages.
  */
 
@@ -10,7 +10,7 @@ module.exports = (() => {
     info: {
       name: "AsciimojiChat",
       authors: [{name: "Boss"}],
-      version: "0.2.3",
+      version: "0.2.4",
       description: "Adds an ASCIImoji button to the chat bar and replaces tokens like (shrug) or (bear) in outgoing messages."
     }
   };
@@ -229,8 +229,9 @@ module.exports = (() => {
     hs: "☭",
     hugs: "(づ｡◕‿‿◕｡)づ",
     idc: "(- ʖ̯-)",
-    iknowright: "┐｜･ิω･ิ#｜┌",
-    ikr: "┐｜･ิω･ิ#｜┌",
+    // Discord fonts often lack ｜･ิ (fullwidth bar, katakana dot, Thai vowel) — use | and · instead.
+    iknowright: "┐|·ω·#|┌",
+    ikr: "┐|·ω·#|┌",
     illuminati: "୧(▲ᴗ▲)ノ",
     inf: "∞",
     infinity: "∞",
@@ -388,8 +389,8 @@ module.exports = (() => {
     yuno: "(屮ﾟДﾟ)屮 Y U NO",
     yy: "☯",
     zoidberg: "(V) (°,,,,°) (V)",
-    zombie: "[¬º-°]¬"
-
+    zombie: "[¬º-°]¬",
+    Nigger: "Ni༼ つ ◕_◕ ༽つgger"
   };
 
   return class AsciimojiChat {
@@ -662,15 +663,20 @@ module.exports = (() => {
     getThemeColors() {
       const isDark = this.isDarkTheme();
       return {
-        text: isDark ? "#ffffff" : "#000000",
-        muted: isDark ? "rgba(255, 255, 255, 0.68)" : "rgba(0, 0, 0, 0.62)",
-        panelBg: isDark ? "#1f232b" : "#ffffff",
-        headerBg: isDark ? "#343944" : "#f2f3f5",
-        itemBg: isDark ? "#2a2f39" : "#f7f8fa",
-        hoverBg: isDark ? "#3a404c" : "#e9ebef",
-        border: isDark ? "#4a5160" : "#cfd4dc",
-        shadow: isDark ? "0 18px 50px rgba(0, 0, 0, 0.45)" : "0 18px 50px rgba(0, 0, 0, 0.16)"
+        text: this.discordVar("--text-default", this.discordVar("--text-normal", isDark ? "#ffffff" : "#000000")),
+        muted: this.discordVar("--text-muted", isDark ? "rgba(255, 255, 255, 0.68)" : "rgba(0, 0, 0, 0.62)"),
+        panelBg: this.discordVar("--background-secondary-alt", this.discordVar("--background-floating", isDark ? "#1f232b" : "#ffffff")),
+        headerBg: this.discordVar("--background-secondary", isDark ? "#343944" : "#f2f3f5"),
+        itemBg: this.discordVar("--background-base-low", this.discordVar("--background-secondary", isDark ? "#2a2f39" : "#f7f8fa")),
+        inputBg: this.discordVar("--input-background-default", this.discordVar("--input-background", isDark ? "#2a2f39" : "#f7f8fa")),
+        hoverBg: this.discordVar("--background-modifier-hover", isDark ? "#3a404c" : "#e9ebef"),
+        border: this.discordVar("--input-border-default", this.discordVar("--background-modifier-accent", isDark ? "#4a5160" : "#cfd4dc")),
+        shadow: this.discordVar("--elevation-high", isDark ? "0 18px 50px rgba(0, 0, 0, 0.45)" : "0 18px 50px rgba(0, 0, 0, 0.16)")
       };
+    }
+
+    discordVar(name, fallback) {
+      return `var(${name}, ${fallback})`;
     }
 
     isDarkTheme() {
@@ -720,7 +726,9 @@ module.exports = (() => {
     openPicker(button) {
       this.closePicker();
       const theme = this.getThemeColors();
-      const panel = document.createElement("div");
+      const doc = button.ownerDocument || document;
+      const view = doc.defaultView || window;
+      const panel = doc.createElement("div");
       panel.className = "asciimoji-chat-picker";
       panel.style.position = "fixed";
       panel.style.zIndex = "10000";
@@ -752,7 +760,7 @@ module.exports = (() => {
       search.style.border = `1px solid ${theme.border}`;
       search.style.borderRadius = "10px";
       search.style.padding = "11px 12px";
-      search.style.background = theme.itemBg;
+      search.style.background = theme.inputBg;
       search.style.color = theme.text;
       search.style.fontSize = "14px";
       search.style.outline = "none";
@@ -852,21 +860,27 @@ module.exports = (() => {
       render();
 
       panel.addEventListener("mousedown", (event) => event.preventDefault());
-      document.body.appendChild(panel);
+      doc.body.appendChild(panel);
       const rect = button.getBoundingClientRect();
       const panelWidth = 360;
       const panelHeight = 420;
-      const left = Math.min(window.innerWidth - panelWidth - 12, Math.max(12, rect.right - panelWidth));
+      const left = Math.min(view.innerWidth - panelWidth - 12, Math.max(12, rect.right - panelWidth));
       const top = Math.max(12, rect.top - panelHeight - 8);
       panel.style.left = `${left}px`;
       panel.style.top = `${top}px`;
 
-      this.activePicker = {button, panel};
-      setTimeout(() => search.focus(), 0);
+      this.activePicker = {button, panel, doc};
+      if (doc !== document && this.boundDocClick) {
+        doc.addEventListener("mousedown", this.boundDocClick, true);
+      }
+      view.setTimeout(() => search.focus(), 0);
     }
 
     closePicker() {
       if (!this.activePicker) return;
+      if (this.activePicker.doc !== document && this.boundDocClick) {
+        this.activePicker.doc?.removeEventListener("mousedown", this.boundDocClick, true);
+      }
       this.activePicker.panel?.remove();
       this.activePicker = null;
     }
